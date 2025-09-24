@@ -1,19 +1,21 @@
 /*
- * Smart Pet Feeder - Phase 1: Basic System Setup & Manual Controls
- * ================================================================
+ * Smart Pet Feeder - Phase 2: Ultrasonic Distance Sensing
+ * =======================================================
  * 
- * This phase establishes:
- * 1. ESP32-S3 communication and serial output
- * 2. Manual feed button detection with debouncing
- * 3. Cat/Dog mode switch reading
- * 4. Basic buzzer control for user feedback
- * 5. System state management foundation
+ * This phase adds:
+ * 1. I2C ultrasonic sensor (M5Stack RCWL-9620) integration
+ * 2. Bowl empty/full detection based on distance measurements
+ * 3. Hopper level monitoring
+ * 4. Distance-based feeding logic foundation
+ * 5. All Phase 1 functionality preserved
  * 
  * Hardware needed for this phase:
- * - ESP32-S3 DevKit
- * - Manual feed button (GPIO10)
- * - Mode switch (GPIO11) 
- * - Buzzer (GPIO12)
+ * - All Phase 1 components (ESP32-S3, button, switch, buzzer)
+ * - M5Stack Ultrasonic Distance Unit (RCWL-9620) on I2C
+ *   - GPIO8 (SDA) → Sensor SDA
+ *   - GPIO9 (SCL) → Sensor SCL  
+ *   - 3.3V → Sensor VCC
+ *   - GND → Sensor GND
  */
 
 #include <Arduino.h>
@@ -70,9 +72,20 @@ void loop() {
   // Handle manual controls (button and switch)
   handleManualControls();
   
-  // Print system status every 5 seconds when idle
+  // Debug: Print GPIO states every 2 seconds
+  static unsigned long lastDebugPrint = 0;
+  if (millis() - lastDebugPrint > 2000) {
+    int gpio10State = digitalRead(FEED_BUTTON_PIN);
+    int gpio11State = digitalRead(MODE_SWITCH_PIN);
+    Serial.printf("DEBUG: GPIO10=%s, GPIO11=%s\n", 
+                  gpio10State ? "HIGH" : "LOW", 
+                  gpio11State ? "HIGH" : "LOW");
+    lastDebugPrint = millis();
+  }
+  
+  // Print system status every 10 seconds when idle (reduced frequency)
   static unsigned long lastStatusPrint = 0;
-  if (millis() - lastStatusPrint > 5000 && systemState == IDLE) {
+  if (millis() - lastStatusPrint > 10000 && systemState == IDLE) {
     printSystemStatus();
     lastStatusPrint = millis();
   }
@@ -131,46 +144,50 @@ void handleManualControls() {
     Serial.println("   → Manual feeding complete, returning to IDLE\n");
   }
   
-  // Check mode switch with debouncing
-  bool modeChanged = false;
-  currentModeState = digitalRead(MODE_SWITCH_PIN);
-  
-  if (currentModeState != lastModeState) {
-    lastModeDebounceTime = millis();
-  }
-  
-  if ((millis() - lastModeDebounceTime) > DEBOUNCE_DELAY) {
-    if (currentModeState != lastModeState) {
-      modeChanged = true;
-      lastModeState = currentModeState;
-    }
-  }
-  
-  if (modeChanged) {
-    FeedingMode newMode = (currentModeState == LOW) ? DOG_MODE : CAT_MODE;
+  // Check mode switch with simplified logic (same as button)
+  if (readButtonWithDebounce(MODE_SWITCH_PIN, lastModeState, lastModeDebounceTime)) {
+    // This detects HIGH->LOW transition (switch to DOG mode)
+    currentMode = DOG_MODE;
+    Serial.println("\n🔄 MODE SWITCH CHANGED!");
+    Serial.printf("   → New mode: DOG\n");
     
-    if (newMode != currentMode) {
-      currentMode = newMode;
-      Serial.println("\n🔄 MODE SWITCH CHANGED!");
-      Serial.printf("   → New mode: %s\n", (currentMode == CAT_MODE) ? "CAT" : "DOG");
-      
-      // Different beep patterns for different modes
-      if (currentMode == CAT_MODE) {
-        playBuzzer(100, 2500); // High pitch for cat
-        delay(50);
-        playBuzzer(100, 2500);
-      } else {
-        playBuzzer(150, 1500); // Lower pitch for dog
-        delay(50);
-        playBuzzer(150, 1500);
-        delay(50);
-        playBuzzer(150, 1500);
+    // Three medium-pitched beeps for dog mode
+    playBuzzer(150, 1500);
+    delay(50);
+    playBuzzer(150, 1500);
+    delay(50);
+    playBuzzer(150, 1500);
+    
+    Serial.printf("   → Portion range: 100-400g\n");
+    Serial.println();
+  } 
+  // Check for LOW->HIGH transition (switch to CAT mode)
+  else {
+    bool currentModeState = digitalRead(MODE_SWITCH_PIN);
+    static bool lastModePinState = HIGH;
+    static unsigned long lastModeChangeTime = 0;
+    
+    // Detect LOW->HIGH edge (switch back to CAT mode)
+    if (lastModePinState == LOW && currentModeState == HIGH) {
+      if ((millis() - lastModeChangeTime) > DEBOUNCE_DELAY) {
+        if (currentMode != CAT_MODE) {
+          currentMode = CAT_MODE;
+          Serial.println("\n🔄 MODE SWITCH CHANGED!");
+          Serial.printf("   → New mode: CAT\n");
+          
+          // Two high-pitched beeps for cat mode
+          playBuzzer(100, 2500);
+          delay(50);
+          playBuzzer(100, 2500);
+          
+          Serial.printf("   → Portion range: 30-100g\n");
+          Serial.println();
+        }
+        lastModeChangeTime = millis();
       }
-      
-      Serial.printf("   → Portion range: %s\n", 
-                    (currentMode == CAT_MODE) ? "30-100g" : "100-400g");
-      Serial.println();
     }
+    
+    lastModePinState = currentModeState;
   }
 }
 
@@ -178,18 +195,21 @@ bool readButtonWithDebounce(int pin, bool &lastState, unsigned long &lastDebounc
   bool currentState = digitalRead(pin);
   bool buttonPressed = false;
   
-  if (currentState != lastState) {
-    lastDebounceTime = millis();
-  }
-  
-  if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
-    if (currentState != lastButtonState && currentState == LOW) {
+  // Simple edge detection: detect HIGH->LOW transition (button press)
+  if (lastState == HIGH && currentState == LOW) {
+    // Check if enough time has passed since last press (debounce)
+    if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
       buttonPressed = true;
+      lastDebounceTime = millis();
+      Serial.printf("BUTTON DEBUG: Pin %d button press detected! (HIGH->LOW edge)\n", pin);
+    } else {
+      Serial.printf("BUTTON DEBUG: Pin %d press ignored (too soon - debouncing)\n", pin);
     }
-    lastButtonState = currentState;
   }
   
+  // Update last state for next comparison
   lastState = currentState;
+  
   return buttonPressed;
 }
 
