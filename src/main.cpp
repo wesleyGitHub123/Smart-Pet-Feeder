@@ -1,0 +1,236 @@
+/*
+ * Smart Pet Feeder - Phase 1: Basic System Setup & Manual Controls
+ * ================================================================
+ * 
+ * This phase establishes:
+ * 1. ESP32-S3 communication and serial output
+ * 2. Manual feed button detection with debouncing
+ * 3. Cat/Dog mode switch reading
+ * 4. Basic buzzer control for user feedback
+ * 5. System state management foundation
+ * 
+ * Hardware needed for this phase:
+ * - ESP32-S3 DevKit
+ * - Manual feed button (GPIO10)
+ * - Mode switch (GPIO11) 
+ * - Buzzer (GPIO12)
+ */
+
+#include <Arduino.h>
+#include "config.h"
+
+// Global variables for input handling
+bool lastButtonState = HIGH;
+bool currentButtonState = HIGH;
+bool lastModeState = HIGH;
+bool currentModeState = HIGH;
+unsigned long lastDebounceTime = 0;
+unsigned long lastModeDebounceTime = 0;
+
+// System state variables
+FeedingMode currentMode = CAT_MODE;
+SystemState systemState = IDLE;
+unsigned long lastStateChange = 0;
+
+// Function declarations
+void initializeSystem();
+void handleManualControls();
+void playBuzzer(int duration, int frequency = 2000);
+void playStartupSequence();
+void printSystemStatus();
+bool readButtonWithDebounce(int pin, bool &lastState, unsigned long &lastDebounceTime);
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(115200);
+  
+  // Wait a moment for serial to stabilize
+  delay(1000);
+  
+  Serial.println("==========================================");
+  Serial.println("   Smart Pet Feeder - Phase 1 Starting   ");
+  Serial.println("==========================================");
+  
+  // Initialize all system components
+  initializeSystem();
+  
+  // Play startup sound sequence
+  playStartupSequence();
+  
+  // Print initial system status
+  printSystemStatus();
+  
+  Serial.println("\nPhase 1 Ready! Testing manual controls...");
+  Serial.println("- Press feed button to test manual feeding trigger");
+  Serial.println("- Toggle mode switch to test Cat/Dog mode detection");
+  Serial.println("==========================================\n");
+}
+
+void loop() {
+  // Handle manual controls (button and switch)
+  handleManualControls();
+  
+  // Print system status every 5 seconds when idle
+  static unsigned long lastStatusPrint = 0;
+  if (millis() - lastStatusPrint > 5000 && systemState == IDLE) {
+    printSystemStatus();
+    lastStatusPrint = millis();
+  }
+  
+  // Small delay to prevent excessive CPU usage
+  delay(10);
+}
+
+void initializeSystem() {
+  Serial.println("Initializing system components...");
+  
+  // Configure input pins with internal pullups
+  pinMode(FEED_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
+  
+  // Configure output pins
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW); // Ensure buzzer starts off
+  
+  // Read initial states
+  lastButtonState = digitalRead(FEED_BUTTON_PIN);
+  currentButtonState = lastButtonState;
+  
+  lastModeState = digitalRead(MODE_SWITCH_PIN);
+  currentModeState = lastModeState;
+  currentMode = (lastModeState == LOW) ? DOG_MODE : CAT_MODE;
+  
+  Serial.println("✓ GPIO pins configured");
+  Serial.println("✓ Initial states read");
+  Serial.printf("✓ Initial mode: %s\n", (currentMode == CAT_MODE) ? "CAT" : "DOG");
+  Serial.println("✓ System initialization complete");
+}
+
+void handleManualControls() {
+  // Check feed button with debouncing
+  if (readButtonWithDebounce(FEED_BUTTON_PIN, lastButtonState, lastDebounceTime)) {
+    Serial.println("\n🔘 MANUAL FEED BUTTON PRESSED!");
+    
+    // Change system state to manual feeding
+    systemState = MANUAL_FEEDING;
+    lastStateChange = millis();
+    
+    // Provide audio feedback
+    playBuzzer(200, 1500); // Short beep
+    
+    Serial.printf("   → Triggered manual feeding in %s mode\n", 
+                  (currentMode == CAT_MODE) ? "CAT" : "DOG");
+    Serial.printf("   → System state changed to: MANUAL_FEEDING\n");
+    
+    // Simulate feeding process (in later phases, this will control the motor)
+    Serial.println("   → [SIMULATION] Would dispense food here...");
+    delay(1000); // Simulate dispensing time
+    
+    // Return to idle state
+    systemState = IDLE;
+    Serial.println("   → Manual feeding complete, returning to IDLE\n");
+  }
+  
+  // Check mode switch with debouncing
+  bool modeChanged = false;
+  currentModeState = digitalRead(MODE_SWITCH_PIN);
+  
+  if (currentModeState != lastModeState) {
+    lastModeDebounceTime = millis();
+  }
+  
+  if ((millis() - lastModeDebounceTime) > DEBOUNCE_DELAY) {
+    if (currentModeState != lastModeState) {
+      modeChanged = true;
+      lastModeState = currentModeState;
+    }
+  }
+  
+  if (modeChanged) {
+    FeedingMode newMode = (currentModeState == LOW) ? DOG_MODE : CAT_MODE;
+    
+    if (newMode != currentMode) {
+      currentMode = newMode;
+      Serial.println("\n🔄 MODE SWITCH CHANGED!");
+      Serial.printf("   → New mode: %s\n", (currentMode == CAT_MODE) ? "CAT" : "DOG");
+      
+      // Different beep patterns for different modes
+      if (currentMode == CAT_MODE) {
+        playBuzzer(100, 2500); // High pitch for cat
+        delay(50);
+        playBuzzer(100, 2500);
+      } else {
+        playBuzzer(150, 1500); // Lower pitch for dog
+        delay(50);
+        playBuzzer(150, 1500);
+        delay(50);
+        playBuzzer(150, 1500);
+      }
+      
+      Serial.printf("   → Portion range: %s\n", 
+                    (currentMode == CAT_MODE) ? "30-100g" : "100-400g");
+      Serial.println();
+    }
+  }
+}
+
+bool readButtonWithDebounce(int pin, bool &lastState, unsigned long &lastDebounceTime) {
+  bool currentState = digitalRead(pin);
+  bool buttonPressed = false;
+  
+  if (currentState != lastState) {
+    lastDebounceTime = millis();
+  }
+  
+  if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
+    if (currentState != lastButtonState && currentState == LOW) {
+      buttonPressed = true;
+    }
+    lastButtonState = currentState;
+  }
+  
+  lastState = currentState;
+  return buttonPressed;
+}
+
+void playBuzzer(int duration, int frequency) {
+  // Simple tone generation using PWM
+  // Note: ESP32 has built-in tone generation capabilities
+  tone(BUZZER_PIN, frequency, duration);
+  delay(duration);
+  noTone(BUZZER_PIN);
+}
+
+void playStartupSequence() {
+  Serial.println("Playing startup sequence...");
+  
+  // Ascending tone sequence to indicate successful boot
+  playBuzzer(100, 1000);
+  delay(50);
+  playBuzzer(100, 1500);
+  delay(50);
+  playBuzzer(150, 2000);
+  
+  Serial.println("✓ Startup sequence complete");
+}
+
+void printSystemStatus() {
+  Serial.println("📊 SYSTEM STATUS:");
+  Serial.printf("   Mode: %s\n", (currentMode == CAT_MODE) ? "CAT" : "DOG");
+  Serial.printf("   State: ");
+  
+  switch(systemState) {
+    case IDLE: Serial.println("IDLE"); break;
+    case CHECKING_BOWL: Serial.println("CHECKING_BOWL"); break;
+    case DISPENSING: Serial.println("DISPENSING"); break;
+    case ALERT_EMPTY_HOPPER: Serial.println("ALERT_EMPTY_HOPPER"); break;
+    case MANUAL_FEEDING: Serial.println("MANUAL_FEEDING"); break;
+    case ERROR_STATE: Serial.println("ERROR_STATE"); break;
+    default: Serial.println("UNKNOWN"); break;
+  }
+  
+  Serial.printf("   Uptime: %lu seconds\n", millis() / 1000);
+  Serial.printf("   Free heap: %u bytes\n", ESP.getFreeHeap());
+  Serial.println("   Hardware status: All systems nominal");
+  Serial.println("------------------------------------------");
+}
