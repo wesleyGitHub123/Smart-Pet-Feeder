@@ -1,0 +1,35 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build Smart Pet Feeder",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run",
+			"group": "build"
+		},
+		{
+			"label": "Upload Smart Pet Feeder",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run --target upload",
+			"group": "build"
+		},
+		{
+			"label": "Upload Clean Debug Version",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run --target upload",
+			"group": "build"
+		},
+		{
+			"label": "Build Clean Version",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run",
+			"group": "build"
+		},
+		{
+			"label": "Build with Sensor Messages",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run",
+			"group": "build"
+		}
+	]
+}
