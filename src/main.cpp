@@ -194,11 +194,21 @@ bool readButtonWithDebounce(int pin, bool &lastState, unsigned long &lastDebounc
 }
 
 void playBuzzer(int duration, int frequency) {
-  // Simple tone generation using PWM
-  // Note: ESP32 has built-in tone generation capabilities
-  tone(BUZZER_PIN, frequency, duration);
+  // ESP32-compatible buzzer control using ledcWrite
+  // Set up PWM channel for buzzer
+  const int pwmChannel = 0;
+  const int pwmResolution = 8;
+  
+  ledcSetup(pwmChannel, frequency, pwmResolution);
+  ledcAttachPin(BUZZER_PIN, pwmChannel);
+  
+  // Turn on buzzer
+  ledcWrite(pwmChannel, 128); // 50% duty cycle
   delay(duration);
-  noTone(BUZZER_PIN);
+  
+  // Turn off buzzer
+  ledcWrite(pwmChannel, 0);
+  ledcDetachPin(BUZZER_PIN);
 }
 
 void playStartupSequence() {
