@@ -1,21 +1,19 @@
 /*
- * Smart Pet Feeder - Phase 2: Ultrasonic Distance Sensing
- * =======================================================
+ * Smart Pet Feeder - Phase 1: Basic System Setup & Manual Controls
+ * ================================================================
  * 
- * This phase adds:
- * 1. I2C ultrasonic sensor (M5Stack RCWL-9620) integration
- * 2. Bowl empty/full detection based on distance measurements
- * 3. Hopper level monitoring
- * 4. Distance-based feeding logic foundation
- * 5. All Phase 1 functionality preserved
+ * This phase establishes:
+ * 1. ESP32-S3 communication and serial output
+ * 2. Manual feed button detection with debouncing
+ * 3. Cat/Dog mode switch reading
+ * 4. Basic buzzer control for user feedback
+ * 5. System state management foundation
  * 
  * Hardware needed for this phase:
- * - All Phase 1 components (ESP32-S3, button, switch, buzzer)
- * - M5Stack Ultrasonic Distance Unit (RCWL-9620) on I2C
- *   - GPIO8 (SDA) → Sensor SDA
- *   - GPIO9 (SCL) → Sensor SCL  
- *   - 3.3V → Sensor VCC
- *   - GND → Sensor GND
+ * - ESP32-S3 DevKit
+ * - Manual feed button (GPIO10)
+ * - Mode switch (GPIO11) 
+ * - Buzzer (GPIO12)
  */
 
 #include <Arduino.h>
