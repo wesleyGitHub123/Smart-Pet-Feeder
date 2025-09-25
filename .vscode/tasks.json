@@ -30,6 +30,18 @@
 			"type": "shell",
 			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run",
 			"group": "build"
+		},
+		{
+			"label": "Build Phase 3",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run",
+			"group": "build"
+		},
+		{
+			"label": "Upload Phase 3",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run --target upload",
+			"group": "build"
 		}
 	]
 }

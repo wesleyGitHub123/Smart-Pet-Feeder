@@ -16,11 +16,11 @@ Establish ESP32-S3 communication, test manual inputs, and create the foundation 
 
 ---
 
-## Phase 2: Ultrasonic Distance Sensing ✅ READY FOR TESTING
+## Phase 2: Ultrasonic Distance Sensing ✅ COMPLETE
 
 **Objective**: Add I2C ultrasonic sensor for bowl and hopper detection
 **New Hardware**: M5Stack RCWL-9620 ultrasonic sensor
-**Expected**: Accurate distance readings, bowl empty/full detection
+**Status**: Successfully implemented with robust sensor communication
 
 ### Hardware Connections
 ```
@@ -119,9 +119,48 @@ RCWL-9620 Sensor:
 
 ---
 
+## Phase 3: Stepper Motor Control ⚙️ IN PROGRESS
+
+**Objective**: Control food dispensing with precise stepper motor movements
+**New Hardware**: NEMA 17 stepper motor + DRV8825 driver module
+**Status**: Implementing precise portion control system
+
+### Hardware Connections for Phase 3
+```
+ESP32-S3 DevKit Wiring - Phase 3 Addition:
+├── GPIO2  → DRV8825 STEP (Step signal)
+├── GPIO1  → DRV8825 DIR (Direction signal)
+├── GPIO42 → DRV8825 ENABLE (Motor enable, active LOW)
+├── DRV8825 VDD → 3.3V (Logic power)
+├── DRV8825 GND → GND (Logic ground)
+├── DRV8825 VMOT → 12V (Motor power supply)
+├── DRV8825 GND → GND (Motor power ground)
+├── DRV8825 1A/1B/2A/2B → NEMA 17 Stepper Motor coils
+
+Existing Phase 1 & 2 connections remain unchanged:
+├── GPIO10 → Feed Button, GPIO11 → Mode Switch, GPIO12 → Buzzer
+├── GPIO8/9 → RCWL-9620 I2C sensor (SDA/SCL)
+```
+
+### Implementation Features
+1. **Precise Portion Control**: Different portions for Cat vs Dog mode
+2. **Motor Calibration**: Steps-to-grams conversion for accurate feeding
+3. **Safety Features**: Enable/disable control, timeout protection
+4. **Integration**: Works with existing bowl detection from Phase 2
+5. **Manual Override**: Manual feeding still works alongside automatic
+
+### Expected Behavior
+- **Cat Mode**: 30-100g portions (500-1700 steps)
+- **Dog Mode**: 100-400g portions (1700-6800 steps) 
+- **Manual Feed**: Button triggers appropriate portion based on current mode
+- **Motor Control**: Smooth acceleration/deceleration, precise positioning
+- **Safety**: Motor disables after feeding, prevents overheating
+
+---
+
 ## Complete Development Plan Overview
 
-### Phase 3: Stepper Motor Control (NEXT)
+### Phase 4: Integrated Feeding Logic (NEXT)
 **Objective**: Control food dispensing with precise motor movements
 **New Hardware**: NEMA 17 stepper + DRV8825 driver  
 **Expected**: Precise portion control, calibrated dispensing

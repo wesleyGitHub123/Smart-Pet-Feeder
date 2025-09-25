@@ -1,26 +1,32 @@
 /*
- * Smart Pet Feeder - Phase 2: Ultrasonic Distance Sensing
- * =======================================================
+ * Smart Pet Feeder - Phase 3: Stepper Motor Control
+ * =================================================
  * 
  * This phase adds:
- * 1. I2C ultrasonic sensor (M5Stack RCWL-9620) integration
- * 2. Bowl empty/full detection based on distance readings
- * 3. Hopper level monitoring
- * 4. Enhanced system status with sensor data
- * 5. All Phase 1 functionality (manual controls, buzzer, mode switching)
+ * 1. Precise stepper motor control for food dispensing
+ * 2. Different portions for Cat vs Dog modes
+ * 3. Manual feeding via button press
+ * 4. Smooth motor acceleration/deceleration
+ * 5. Motor safety features and enable/disable control
+ * 6. Integration with existing bowl detection from Phase 2
+ * 7. All Phase 1 & 2 functionality preserved
  * 
  * Hardware needed for this phase:
  * - ESP32-S3 DevKit
  * - Manual feed button (GPIO10)
  * - Mode switch (GPIO11) 
  * - Buzzer (GPIO12)
- * - M5Stack RCWL-9620 ultrasonic sensor (I2C: SDA=GPIO8, SCL=GPIO9)
+ * - RCWL-9620 ultrasonic sensor (I2C: SDA=GPIO8, SCL=GPIO9)
+ * - NEMA 17 stepper motor + DRV8825 driver
+ *   - STEP: GPIO2, DIR: GPIO1, ENABLE: GPIO42
+ *   - Motor power: 12V, Logic power: 3.3V
  */
 
 #include <Arduino.h>
 #include <Wire.h>  // For I2C communication
 #include "config.h"
 #include "sensor.h"  // Include sensor module header
+#include "motor.h"   // Include motor module header
 
 // Global variables for input handling
 bool lastButtonState = HIGH;
@@ -60,9 +66,9 @@ void setup() {
   delay(1000);
   
   Serial.println("==========================================");
-  Serial.println("   Smart Pet Feeder - Phase 2 Starting   ");
-  Serial.println("    + Ultrasonic Distance Sensing +      ");
-  Serial.println("==========================================");
+  Serial.println("   Smart Pet Feeder - Phase 3 Starting   ");
+  Serial.println("      + Stepper Motor Control +          ");
+  Serial.println("==========================================");;
   
   // Initialize all system components
   initializeSystem();
@@ -73,10 +79,11 @@ void setup() {
   // Print initial system status
   printSystemStatus();
   
-  Serial.println("\nPhase 2 Ready! Testing ultrasonic sensor and manual controls...");
-  Serial.println("- Press feed button to test manual feeding trigger");
-  Serial.println("- Toggle mode switch to test Cat/Dog mode detection");
+  Serial.println("\nPhase 3 Ready! Testing motor control and feeding system...");
+  Serial.println("- Press feed button to dispense food portion");  
+  Serial.println("- Toggle mode switch to test Cat/Dog portion sizes");
   Serial.println("- Watch distance readings for bowl/hopper monitoring");
+  Serial.println("- Motor will dispense appropriate portions automatically");
   Serial.println("==========================================\n");
 }
 
@@ -120,6 +127,9 @@ void initializeSystem() {
   // Initialize I2C for ultrasonic sensor
   initializeUltrasonicSensor();
   
+  // Initialize stepper motor
+  initializeMotor();
+  
   // Read initial states
   lastButtonState = digitalRead(FEED_BUTTON_PIN);
   currentButtonState = lastButtonState;
@@ -130,6 +140,7 @@ void initializeSystem() {
   
   Serial.println("✓ GPIO pins configured");
   Serial.println("✓ I2C ultrasonic sensor initialized");
+  Serial.println("✓ Stepper motor initialized");
   Serial.println("✓ Initial states read");
   Serial.printf("✓ Initial mode: %s\n", (currentMode == CAT_MODE) ? "CAT" : "DOG");
   Serial.println("✓ System initialization complete");
@@ -140,21 +151,8 @@ void handleManualControls() {
   if (readButtonWithDebounce(FEED_BUTTON_PIN, lastButtonState, lastDebounceTime)) {
     Serial.println("\n🔘 MANUAL FEED BUTTON PRESSED!");
     
-    // Change system state to manual feeding
-    systemState = MANUAL_FEEDING;
-    lastStateChange = millis();
-    
-    // Provide audio feedback
-    playBuzzer(200, 1500); // Short beep
-    
-    Serial.printf("Manual feed: %s mode\n", 
-                  (currentMode == CAT_MODE) ? "CAT" : "DOG");
-    
-    // Simulate feeding process (in later phases, this will control the motor)
-    delay(1000); // Simulate dispensing time
-    
-    // Return to idle state
-    systemState = IDLE;
+    // Trigger manual feeding using motor control
+    manualFeed();
   }
   
   // Check mode switch with simplified logic (same as button)
@@ -266,6 +264,10 @@ void printSystemStatus() {
   Serial.printf("   Bowl Status: %s\n", bowlEmpty ? "EMPTY" : "HAS FOOD");
   Serial.printf("   Hopper Status: %s\n", hopperLow ? "LOW/EMPTY" : "OK");
   Serial.printf("   Sensor: %s\n", sensorInitialized ? "ONLINE" : "ERROR");
+  
+  // Add motor status
+  printMotorStatus();
+  
   Serial.printf("   Uptime: %lu seconds\n", millis() / 1000);
   Serial.printf("   Free heap: %u bytes\n", ESP.getFreeHeap());
   Serial.println("   Hardware status: All systems nominal");
