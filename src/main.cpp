@@ -18,7 +18,7 @@
  * - Buzzer (GPIO12)
  * - RCWL-9620 ultrasonic sensor (I2C: SDA=GPIO8, SCL=GPIO9)
  * - NEMA 17 stepper motor + DRV8825 driver
- *   - STEP: GPIO2, DIR: GPIO1, ENABLE: GPIO42
+ *   - STEP: GPIO2, DIR: GPIO1, ENABLE: GPIO3
  *   - Motor power: 12V, Logic power: 3.3V
  */
 
@@ -118,7 +118,7 @@ void initializeSystem() {
   
   // Configure input pins with internal pullups
   pinMode(FEED_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
+  pinMode(MODE_BUTTON_PIN, INPUT_PULLUP);
   
   // Configure output pins
   pinMode(BUZZER_PIN, OUTPUT);
@@ -134,7 +134,7 @@ void initializeSystem() {
   lastButtonState = digitalRead(FEED_BUTTON_PIN);
   currentButtonState = lastButtonState;
   
-  lastModeState = digitalRead(MODE_SWITCH_PIN);
+  lastModeState = digitalRead(MODE_BUTTON_PIN);
   currentModeState = lastModeState;
   currentMode = (lastModeState == LOW) ? DOG_MODE : CAT_MODE;
   
@@ -155,43 +155,28 @@ void handleManualControls() {
     manualFeed();
   }
   
-  // Check mode switch with simplified logic (same as button)
-  if (readButtonWithDebounce(MODE_SWITCH_PIN, lastModeState, lastModeDebounceTime)) {
-    // This detects HIGH->LOW transition (switch to DOG mode)
-    currentMode = DOG_MODE;
-    Serial.println("Mode: DOG");
-    
-    // Three medium-pitched beeps for dog mode
-    playBuzzer(150, 1500);
-    delay(50);
-    playBuzzer(150, 1500);
-    delay(50);
-    playBuzzer(150, 1500);
-  } 
-  // Check for LOW->HIGH transition (switch to CAT mode)
-  else {
-    bool currentModeState = digitalRead(MODE_SWITCH_PIN);
-    static bool lastModePinState = HIGH;
-    static unsigned long lastModeChangeTime = 0;
-    
-    // Detect LOW->HIGH edge (switch back to CAT mode)
-    if (lastModePinState == LOW && currentModeState == HIGH) {
-      if ((millis() - lastModeChangeTime) > DEBOUNCE_DELAY) {
-        if (currentMode != CAT_MODE) {
-          currentMode = CAT_MODE;
-          Serial.println("\n🔄 MODE SWITCH CHANGED!");
-          Serial.println("Mode: CAT");
-          
-          // Two high-pitched beeps for cat mode
-          playBuzzer(100, 2500);
-          delay(50);
-          playBuzzer(100, 2500);
-        }
-        lastModeChangeTime = millis();
-      }
+  // Check mode button (toggle between CAT and DOG modes)
+  if (readButtonWithDebounce(MODE_BUTTON_PIN, lastModeState, lastModeDebounceTime)) {
+    // Toggle between modes
+    if (currentMode == CAT_MODE) {
+      currentMode = DOG_MODE;
+      Serial.println("Mode: DOG");
+      
+      // Three medium-pitched beeps for dog mode
+      playBuzzer(150, 1500);
+      delay(50);
+      playBuzzer(150, 1500);
+      delay(50);
+      playBuzzer(150, 1500);
+    } else {
+      currentMode = CAT_MODE;
+      Serial.println("Mode: CAT");
+      
+      // Two high-pitched beeps for cat mode
+      playBuzzer(100, 2500);
+      delay(50);
+      playBuzzer(100, 2500);
     }
-    
-    lastModePinState = currentModeState;
   }
 }
 

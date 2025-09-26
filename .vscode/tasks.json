@@ -42,6 +42,12 @@
 			"type": "shell",
 			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run --target upload",
 			"group": "build"
+		},
+		{
+			"label": "Build Fixed Pins",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run",
+			"group": "build"
 		}
 	]
 }

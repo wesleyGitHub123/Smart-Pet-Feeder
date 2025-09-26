@@ -7,7 +7,7 @@
 // === STEPPER MOTOR (DRV8825) ===
 #define MOTOR_STEP_PIN    2   // GPIO2 - Step signal
 #define MOTOR_DIR_PIN     1   // GPIO1 - Direction signal
-#define MOTOR_ENABLE_PIN  42  // GPIO42 - Enable (active LOW)
+#define MOTOR_ENABLE_PIN  3   // GPIO3 - Enable (active LOW)
 
 // === I2C ULTRASONIC SENSOR (RCWL-9620) ===
 #define I2C_SDA_PIN       8   // GPIO8 - SDA
@@ -16,7 +16,7 @@
 
 // === MANUAL CONTROLS ===
 #define FEED_BUTTON_PIN   10  // GPIO10 - Manual feed button
-#define MODE_SWITCH_PIN   11  // GPIO11 - Cat/Dog mode switch
+#define MODE_BUTTON_PIN   11  // GPIO11 - Mode toggle button (Cat/Dog)
 
 // === ALERTS ===
 #define BUZZER_PIN        12  // GPIO12 - Buzzer for alerts
