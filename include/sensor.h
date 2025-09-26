@@ -18,7 +18,6 @@ float readUltrasonicDistance();
 
 // Function declarations for status analysis
 void analyzeBowlStatus();
-void analyzeHopperStatus();
 
 // Function declarations for debugging and diagnostics
 void printSensorDebug();
@@ -27,6 +26,5 @@ void printSensorDebug();
 bool isSensorInitialized();
 float getCurrentDistance();
 bool isBowlEmpty();
-bool isHopperLow();
 
 #endif // SENSOR_H

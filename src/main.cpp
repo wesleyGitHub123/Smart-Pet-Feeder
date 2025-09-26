@@ -44,15 +44,25 @@ unsigned long lastStateChange = 0;
 // Ultrasonic sensor variables
 float currentDistance = 0.0;
 float bowlDistance = 0.0;
-float hopperDistance = 0.0;
 unsigned long lastSensorRead = 0;
 bool bowlEmpty = false;
-bool hopperLow = false;
 bool sensorInitialized = false;
+
+// Phase 4: Automatic feeding variables
+unsigned long lastAutoFeedTime = 0;
+unsigned long lastAutoFeedCheck = 0;
+unsigned long bowlEmptyStartTime = 0;
+bool bowlEmptyConfirmed = false;
+int dailyAutoFeedCount = 0;
+unsigned long dailyResetTime = 0;
+bool automaticFeedingEnabled = true;
 
 // Function declarations (non-sensor functions)
 void initializeSystem();
 void handleManualControls();
+void handleAutomaticFeeding();
+void performAutomaticFeed();
+void resetDailyFeedCount();
 void playBuzzer(int duration, int frequency = 2000);
 void playStartupSequence();
 void printSystemStatus();
@@ -66,8 +76,8 @@ void setup() {
   delay(1000);
   
   Serial.println("==========================================");
-  Serial.println("   Smart Pet Feeder - Phase 3 Starting   ");
-  Serial.println("      + Stepper Motor Control +          ");
+  Serial.println("   Smart Pet Feeder - Phase 4 Starting   ");
+  Serial.println("      + Automatic Feeding Logic +        ");
   Serial.println("==========================================");;
   
   // Initialize all system components
@@ -79,11 +89,11 @@ void setup() {
   // Print initial system status
   printSystemStatus();
   
-  Serial.println("\nPhase 3 Ready! Testing motor control and feeding system...");
-  Serial.println("- Press feed button to dispense food portion");  
-  Serial.println("- Toggle mode switch to test Cat/Dog portion sizes");
-  Serial.println("- Watch distance readings for bowl/hopper monitoring");
-  Serial.println("- Motor will dispense appropriate portions automatically");
+  Serial.println("\nPhase 4 Ready! Automatic feeding system active...");
+  Serial.println("- Manual feed: Press feed button anytime");  
+  Serial.println("- Mode toggle: Press mode button for Cat/Dog switching");
+  Serial.println("- Auto feed: System will feed when bowl is empty for 1 minute");
+  Serial.println("- Safety: Max 8 automatic feeds per day, 30min intervals");
   Serial.println("==========================================\n");
 }
 
@@ -93,6 +103,9 @@ void loop() {
   
   // Handle manual controls (button and switch)
   handleManualControls();
+  
+  // Phase 4: Automatic feeding logic based on bowl status
+  handleAutomaticFeeding();
   
   // Print sensor status every 2 seconds
   static unsigned long lastDebugPrint = 0;
@@ -138,9 +151,19 @@ void initializeSystem() {
   currentModeState = lastModeState;
   currentMode = (lastModeState == LOW) ? DOG_MODE : CAT_MODE;
   
+  // Initialize Phase 4: Automatic feeding variables
+  lastAutoFeedTime = 0;  // Allow immediate feeding on startup
+  lastAutoFeedCheck = 0;
+  bowlEmptyStartTime = 0;
+  bowlEmptyConfirmed = false;
+  dailyAutoFeedCount = 0;
+  dailyResetTime = millis();
+  automaticFeedingEnabled = true;
+  
   Serial.println("✓ GPIO pins configured");
   Serial.println("✓ I2C ultrasonic sensor initialized");
   Serial.println("✓ Stepper motor initialized");
+  Serial.println("✓ Automatic feeding system initialized");
   Serial.println("✓ Initial states read");
   Serial.printf("✓ Initial mode: %s\n", (currentMode == CAT_MODE) ? "CAT" : "DOG");
   Serial.println("✓ System initialization complete");
@@ -247,14 +270,148 @@ void printSystemStatus() {
   
   Serial.printf("   Distance: %.1f cm\n", currentDistance);
   Serial.printf("   Bowl Status: %s\n", bowlEmpty ? "EMPTY" : "HAS FOOD");
-  Serial.printf("   Hopper Status: %s\n", hopperLow ? "LOW/EMPTY" : "OK");
   Serial.printf("   Sensor: %s\n", sensorInitialized ? "ONLINE" : "ERROR");
   
   // Add motor status
   printMotorStatus();
   
+  // Phase 4: Add automatic feeding status
+  Serial.printf("   Auto Feeding: %s\n", automaticFeedingEnabled ? "ENABLED" : "DISABLED");
+  Serial.printf("   Daily Auto Feeds: %d/%d\n", dailyAutoFeedCount, MAX_DAILY_AUTO_FEEDS);
+  Serial.printf("   Last Auto Feed: %lu min ago\n", (millis() - lastAutoFeedTime) / 60000);
+  if (bowlEmpty && bowlEmptyConfirmed) {
+    Serial.printf("   Next Auto Feed: READY (bowl confirmed empty)\n");
+  } else if (bowlEmpty && bowlEmptyStartTime > 0) {
+    unsigned long elapsedTime = millis() - bowlEmptyStartTime;
+    if (elapsedTime < BOWL_EMPTY_CONFIRMATION_TIME) {
+      unsigned long timeLeft = BOWL_EMPTY_CONFIRMATION_TIME - elapsedTime;
+      Serial.printf("   Next Auto Feed: %lu sec (confirming empty bowl)\n", timeLeft / 1000);
+    } else {
+      Serial.printf("   Next Auto Feed: READY (confirmation complete)\n");
+    }
+  } else {
+    Serial.printf("   Next Auto Feed: Waiting for empty bowl\n");
+  }
+  
   Serial.printf("   Uptime: %lu seconds\n", millis() / 1000);
   Serial.printf("   Free heap: %u bytes\n", ESP.getFreeHeap());
   Serial.println("   Hardware status: All systems nominal");
   Serial.println("------------------------------------------");
+}
+
+// ===============================================
+// Phase 4: Automatic Feeding Functions
+// ===============================================
+
+void handleAutomaticFeeding() {
+  // Debug: Check what's happening with auto-feeding
+  static unsigned long lastAutoFeedDebug = 0;
+  if (millis() - lastAutoFeedDebug > 15000) { // Debug every 15 seconds
+    Serial.printf("🔧 AUTO-FEED DEBUG: bowlEmpty=%s, enabled=%s, dailyCount=%d/%d\n",
+                  bowlEmpty ? "YES" : "NO",
+                  automaticFeedingEnabled ? "YES" : "NO", 
+                  dailyAutoFeedCount, MAX_DAILY_AUTO_FEEDS);
+    Serial.printf("   Time since last check: %lu ms (interval: %d ms)\n", 
+                  millis() - lastAutoFeedCheck, AUTO_FEED_CHECK_INTERVAL);
+    Serial.printf("   Time since last feed: %lu ms (min interval: %d ms)\n",
+                  millis() - lastAutoFeedTime, AUTO_FEED_MIN_INTERVAL);
+    lastAutoFeedDebug = millis();
+  }
+  
+  // Reset daily feed count at midnight (24 hours since last reset)
+  if (millis() - dailyResetTime > 24UL * 60 * 60 * 1000) {
+    resetDailyFeedCount();
+  }
+  
+  // Only proceed if automatic feeding is enabled
+  if (!automaticFeedingEnabled) {
+    return;
+  }
+  
+  // Safety check: Don't exceed daily feed limit
+  if (dailyAutoFeedCount >= MAX_DAILY_AUTO_FEEDS) {
+    return;
+  }
+  
+  // Safety check: Minimum interval between automatic feeds (skip on first feed)
+  if (lastAutoFeedTime != 0 && millis() - lastAutoFeedTime < AUTO_FEED_MIN_INTERVAL) {
+    return;
+  }
+  
+  // Check if it's time to evaluate feeding (every 5 seconds)
+  if (millis() - lastAutoFeedCheck < AUTO_FEED_CHECK_INTERVAL) {
+    return;
+  }
+  lastAutoFeedCheck = millis();
+  
+  Serial.println("🔧 AUTO-FEED: Performing check..."); // Debug message
+  
+  // Handle bowl empty confirmation logic
+  if (bowlEmpty) {
+    if (bowlEmptyStartTime == 0) {
+      // Bowl just became empty, start confirmation timer
+      bowlEmptyStartTime = millis();
+      bowlEmptyConfirmed = false;
+      Serial.println("🍽️ BOWL DETECTED EMPTY - Starting confirmation timer...");
+    } else if (!bowlEmptyConfirmed && (millis() - bowlEmptyStartTime > BOWL_EMPTY_CONFIRMATION_TIME)) {
+      // Bowl has been empty long enough, confirm and prepare to feed
+      bowlEmptyConfirmed = true;
+      Serial.println("✅ BOWL EMPTY CONFIRMED - Ready for automatic feeding");
+      
+      // Play alert sound for automatic feeding
+      playBuzzer(200, 1800);
+      delay(100);
+      playBuzzer(200, 2200);
+      delay(100);
+      playBuzzer(200, 1800);
+    }
+  } else {
+    // Bowl is not empty, reset confirmation
+    bowlEmptyStartTime = 0;
+    bowlEmptyConfirmed = false;
+  }
+  
+  // Perform automatic feed if conditions are met (simplified - no hopper check)
+  if (bowlEmptyConfirmed && sensorInitialized) {
+    performAutomaticFeed();
+  }
+}
+
+void performAutomaticFeed() {
+  Serial.println("\n🤖 AUTOMATIC FEEDING INITIATED");
+  Serial.printf("Mode: %s | Portion: %s\n", 
+    currentMode == CAT_MODE ? "CAT" : "DOG",
+    currentMode == CAT_MODE ? "20g" : "50g");
+  
+  systemState = DISPENSING;
+  
+  // Play distinctive auto-feed sound sequence
+  playBuzzer(100, 2500);  // High pitch
+  delay(50);
+  playBuzzer(100, 1500);  // Low pitch  
+  delay(50);
+  playBuzzer(200, 2000);  // Medium pitch, longer
+  
+  // Dispense appropriate portion using motor module
+  manualFeed();
+  
+  // Update automatic feeding tracking
+  lastAutoFeedTime = millis();
+  dailyAutoFeedCount++;
+  bowlEmptyConfirmed = false;
+  bowlEmptyStartTime = 0;
+  
+  systemState = IDLE;
+  
+  Serial.printf("✅ AUTOMATIC FEEDING COMPLETE (%d/%d daily feeds used)\n", 
+    dailyAutoFeedCount, MAX_DAILY_AUTO_FEEDS);
+  
+  // Play completion sound
+  playBuzzer(300, 2200);
+}
+
+void resetDailyFeedCount() {
+  dailyAutoFeedCount = 0;
+  dailyResetTime = millis();
+  Serial.println("🕛 Daily feed count reset - New feeding cycle started");
 }

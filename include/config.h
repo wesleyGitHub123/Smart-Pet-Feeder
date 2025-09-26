@@ -31,10 +31,6 @@
 #define BOWL_EMPTY_THRESHOLD    15  // If distance > 15cm, bowl is empty
 #define BOWL_FULL_THRESHOLD     8   // If distance < 8cm, bowl has food
 
-// Hopper monitoring (approximate distances in cm)
-#define HOPPER_EMPTY_THRESHOLD  25  // Distance indicating hopper is empty
-#define HOPPER_LOW_THRESHOLD    20  // Distance indicating hopper is low
-
 // Feeding portions (in steps - will calibrate in testing)
 #define CAT_MIN_PORTION         500   // ~30g equivalent in motor steps
 #define CAT_MAX_PORTION         1700  // ~100g equivalent in motor steps
@@ -48,6 +44,13 @@
 // Timing
 #define DEBOUNCE_DELAY         50    // Button debounce in ms
 #define SENSOR_READ_INTERVAL   1000  // Ultrasonic read interval in ms
+
+// Phase 4: Automatic Feeding Configuration
+#define AUTO_FEED_MIN_INTERVAL     (2 * 60 * 1000UL)   // 2 minutes minimum between auto feeds (testing)
+#define AUTO_FEED_CHECK_INTERVAL   5000                     // Check for feeding every 5 seconds (testing)
+#define MAX_DAILY_AUTO_FEEDS       8                    // Maximum automatic feeds per day
+#define BOWL_EMPTY_CONFIRMATION_TIME 60000              // Bowl must be empty for 1 minute before auto feed
+#define FEEDING_TIMEOUT            30000                // Maximum time for a feeding operation (30 sec)
 #define HOPPER_CHECK_INTERVAL  30000 // Check hopper every 30 seconds
 
 // System states

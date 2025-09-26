@@ -48,6 +48,32 @@
 			"type": "shell",
 			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe run",
 			"group": "build"
+		},
+		{
+			"label": "Build Phase 4",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run"
+			],
+			"problemMatcher": [
+				"$platformio"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Upload Phase 4",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--target",
+				"upload"
+			],
+			"problemMatcher": [
+				"$platformio"
+			],
+			"group": "build"
 		}
 	]
 }

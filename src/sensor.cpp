@@ -10,10 +10,8 @@
 // External global variables (defined in main.cpp)
 extern float currentDistance;
 extern float bowlDistance;
-extern float hopperDistance;
 extern unsigned long lastSensorRead;
 extern bool bowlEmpty;
-extern bool hopperLow;
 extern bool sensorInitialized;
 extern SystemState systemState;
 
@@ -80,9 +78,8 @@ void updateSensorReadings() {
       if (newDistance > 0) {
         currentDistance = newDistance;
         
-        // Analyze bowl and hopper status based on distance
+        // Analyze bowl status based on distance
         analyzeBowlStatus();
-        analyzeHopperStatus();
       }
     }
     
@@ -186,39 +183,11 @@ void analyzeBowlStatus() {
   }
 }
 
-void analyzeHopperStatus() {
-  bool previousHopperLow = hopperLow;
-  
-  // For hopper monitoring, we'd need a second sensor or different positioning
-  // For now, simulate hopper status based on very high distances
-  // (This would be refined based on actual hardware setup)
-  if (currentDistance > HOPPER_EMPTY_THRESHOLD) {
-    hopperLow = true;
-  } else if (currentDistance < HOPPER_LOW_THRESHOLD) {
-    hopperLow = false;
-  }
-  
-  // Alert if hopper status changed to low/empty
-  if (hopperLow && !previousHopperLow) {
-    Serial.println("🥫 ALERT: Hopper is running LOW or EMPTY!");
-    systemState = ALERT_EMPTY_HOPPER;
-    
-    // Play urgent alert sequence
-    for (int i = 0; i < 3; i++) {
-      playBuzzer(200, 800);
-      delay(100);
-    }
-    
-    systemState = IDLE;
-  }
-}
-
 void printSensorDebug() {
   if (sensorInitialized) {
-    Serial.printf("SENSOR: %.1f cm | Bowl: %s | Hopper: %s\n", 
+    Serial.printf("SENSOR: %.1f cm | Bowl: %s\n", 
                   currentDistance,
-                  bowlEmpty ? "EMPTY" : "OK",
-                  hopperLow ? "LOW" : "OK");
+                  bowlEmpty ? "EMPTY" : "OK");
   } else {
     Serial.println("SENSOR: ERROR - Not initialized");
   }
@@ -238,8 +207,4 @@ float getCurrentDistance() {
 
 bool isBowlEmpty() {
   return bowlEmpty;
-}
-
-bool isHopperLow() {
-  return hopperLow;
 }
