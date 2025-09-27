@@ -74,6 +74,15 @@
 				"$platformio"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Build Phase 5",
+			"type": "shell",
+			"command": "C:\\Users\\shomb\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run"
+			],
+			"group": "build"
 		}
 	]
 }

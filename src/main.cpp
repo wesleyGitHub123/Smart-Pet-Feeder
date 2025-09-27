@@ -1,15 +1,15 @@
 /*
- * Smart Pet Feeder - Phase 3: Stepper Motor Control
- * =================================================
+ * Smart Pet Feeder - Phase 5: SMS Alert System
+ * =============================================
  * 
  * This phase adds:
- * 1. Precise stepper motor control for food dispensing
- * 2. Different portions for Cat vs Dog modes
- * 3. Manual feeding via button press
- * 4. Smooth motor acceleration/deceleration
- * 5. Motor safety features and enable/disable control
- * 6. Integration with existing bowl detection from Phase 2
- * 7. All Phase 1 & 2 functionality preserved
+ * 1. SMS alerts for automatic feeding events
+ * 2. SMS alerts for manual feeding events  
+ * 3. SMS system status notifications
+ * 4. SMS error alerts for feeding failures
+ * 5. Non-blocking GSM/SMS functionality
+ * 6. Integration with existing smart protocol
+ * 7. All Phase 1-4 functionality preserved
  * 
  * Hardware needed for this phase:
  * - ESP32-S3 DevKit
@@ -20,6 +20,9 @@
  * - NEMA 17 stepper motor + DRV8825 driver
  *   - STEP: GPIO2, DIR: GPIO1, ENABLE: GPIO3
  *   - Motor power: 12V, Logic power: 3.3V
+ * - SIM800L GSM module
+ *   - TX: GPIO6, RX: GPIO7, RST: GPIO13
+ *   - Power: 3.7-4.2V (external supply recommended)
  */
 
 #include <Arduino.h>
@@ -27,6 +30,7 @@
 #include "config.h"
 #include "sensor.h"  // Include sensor module header
 #include "motor.h"   // Include motor module header
+#include "gsm.h"     // Include GSM module header (Phase 5)
 
 // Global variables for input handling
 bool lastButtonState = HIGH;
@@ -76,8 +80,8 @@ void setup() {
   delay(1000);
   
   Serial.println("==========================================");
-  Serial.println("   Smart Pet Feeder - Phase 4 Starting   ");
-  Serial.println("      + Automatic Feeding Logic +        ");
+  Serial.println("   Smart Pet Feeder - Phase 5 Starting   ");
+  Serial.println("      + SMS Alert System +               ");
   Serial.println("==========================================");;
   
   // Initialize all system components
@@ -89,17 +93,22 @@ void setup() {
   // Print initial system status
   printSystemStatus();
   
-  Serial.println("\nPhase 4 Ready! Automatic feeding system active...");
+  Serial.println("\nPhase 5 Ready! SMS alert system active...");
   Serial.println("- Manual feed: Press feed button anytime");  
   Serial.println("- Mode toggle: Press mode button for Cat/Dog switching");
   Serial.println("- Auto feed: System will feed when bowl is empty for 1 minute");
   Serial.println("- Safety: Max 8 automatic feeds per day, 30min intervals");
+  Serial.println("- SMS Alerts: Automatic feeding, manual feeding, and system status");
+  Serial.println("- Test SMS: GSM module will send alerts to +639291145133");
   Serial.println("==========================================\n");
 }
 
 void loop() {
   // Update ultrasonic sensor readings
   updateSensorReadings();
+  
+  // Update GSM status (Phase 5) - non-blocking
+  updateGSMStatus();
   
   // Handle manual controls (button and switch)
   handleManualControls();
@@ -143,6 +152,9 @@ void initializeSystem() {
   // Initialize stepper motor
   initializeMotor();
   
+  // Initialize GSM module (Phase 5)
+  initializeGSM();
+  
   // Read initial states
   lastButtonState = digitalRead(FEED_BUTTON_PIN);
   currentButtonState = lastButtonState;
@@ -163,6 +175,7 @@ void initializeSystem() {
   Serial.println("✓ GPIO pins configured");
   Serial.println("✓ I2C ultrasonic sensor initialized");
   Serial.println("✓ Stepper motor initialized");
+  Serial.println("✓ GSM module initialization started");
   Serial.println("✓ Automatic feeding system initialized");
   Serial.println("✓ Initial states read");
   Serial.printf("✓ Initial mode: %s\n", (currentMode == CAT_MODE) ? "CAT" : "DOG");
@@ -174,8 +187,14 @@ void handleManualControls() {
   if (readButtonWithDebounce(FEED_BUTTON_PIN, lastButtonState, lastDebounceTime)) {
     Serial.println("\n🔘 MANUAL FEED BUTTON PRESSED!");
     
+    // Prepare SMS alert message
+    String feedInfo = (currentMode == CAT_MODE) ? "CAT (20g)" : "DOG (50g)";
+    
     // Trigger manual feeding using motor control
     manualFeed();
+    
+    // Send SMS alert for manual feed (Phase 5)
+    sendSMSAlert(SMS_MANUAL_FEED, feedInfo.c_str());
   }
   
   // Check mode button (toggle between CAT and DOG modes)
@@ -275,6 +294,9 @@ void printSystemStatus() {
   // Add motor status
   printMotorStatus();
   
+  // Phase 5: Add GSM status
+  printGSMStatus();
+  
   // Phase 4: Add automatic feeding status
   Serial.printf("   Auto Feeding: %s\n", automaticFeedingEnabled ? "ENABLED" : "DISABLED");
   Serial.printf("   Daily Auto Feeds: %d/%d\n", dailyAutoFeedCount, MAX_DAILY_AUTO_FEEDS);
@@ -330,6 +352,13 @@ void handleAutomaticFeeding() {
   
   // Safety check: Don't exceed daily feed limit
   if (dailyAutoFeedCount >= MAX_DAILY_AUTO_FEEDS) {
+    // Send alert if bowl is empty but max feeds reached (Phase 5)
+    static unsigned long lastMaxFeedAlert = 0;
+    if (bowlEmpty && (millis() - lastMaxFeedAlert > 3600000)) { // Alert once per hour
+      String alertMsg = "Bowl empty but max daily feeds reached (" + String(MAX_DAILY_AUTO_FEEDS) + "/" + String(MAX_DAILY_AUTO_FEEDS) + ")";
+      sendSMSAlert(SMS_BOWL_EMPTY_ALERT, alertMsg.c_str());
+      lastMaxFeedAlert = millis();
+    }
     return;
   }
   
@@ -401,6 +430,13 @@ void performAutomaticFeed() {
   bowlEmptyConfirmed = false;
   bowlEmptyStartTime = 0;
   
+  // Prepare SMS alert message (Phase 5)
+  String feedInfo = (currentMode == CAT_MODE) ? "CAT (20g)" : "DOG (50g)";
+  String statusInfo = feedInfo + " - Daily feeds: " + String(dailyAutoFeedCount) + "/8";
+  
+  // Send SMS alert for automatic feed (Phase 5)
+  sendSMSAlert(SMS_AUTO_FEED, statusInfo.c_str());
+  
   systemState = IDLE;
   
   Serial.printf("✅ AUTOMATIC FEEDING COMPLETE (%d/%d daily feeds used)\n", 
@@ -414,4 +450,7 @@ void resetDailyFeedCount() {
   dailyAutoFeedCount = 0;
   dailyResetTime = millis();
   Serial.println("🕛 Daily feed count reset - New feeding cycle started");
+  
+  // Send SMS alert for daily reset (Phase 5)
+  sendSMSAlert(SMS_DAILY_RESET);
 }

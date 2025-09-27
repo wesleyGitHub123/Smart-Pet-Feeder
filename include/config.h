@@ -21,9 +21,9 @@
 // === ALERTS ===
 #define BUZZER_PIN        12  // GPIO12 - Buzzer for alerts
 
-// === GSM MODULE (SIM800L) ===
-#define GSM_RX_PIN        17  // GPIO17 - Connect to SIM800L TX
-#define GSM_TX_PIN        18  // GPIO18 - Connect to SIM800L RX
+// === GSM MODULE (SIM800L) - PHASE 5 ===
+#define GSM_RX_PIN        6   // GPIO6 - Connect to SIM800L TX
+#define GSM_TX_PIN        7   // GPIO7 - Connect to SIM800L RX  
 #define GSM_RESET_PIN     13  // GPIO13 - Reset pin for SIM800L
 
 // === SYSTEM PARAMETERS ===
@@ -52,6 +52,13 @@
 #define BOWL_EMPTY_CONFIRMATION_TIME 60000              // Bowl must be empty for 1 minute before auto feed
 #define FEEDING_TIMEOUT            30000                // Maximum time for a feeding operation (30 sec)
 #define HOPPER_CHECK_INTERVAL  30000 // Check hopper every 30 seconds
+
+// Phase 5: GSM/SMS Configuration
+#define GSM_BAUD_RATE             9600                  // SIM800L communication speed
+#define GSM_INIT_TIMEOUT          30000                 // GSM initialization timeout
+#define GSM_STATUS_CHECK_INTERVAL 10000                 // Check GSM status every 10 seconds
+#define SMS_SEND_TIMEOUT          15000                 // SMS sending timeout
+#define GSM_AT_TIMEOUT            5000                  // AT command response timeout
 
 // System states
 enum FeedingMode {
